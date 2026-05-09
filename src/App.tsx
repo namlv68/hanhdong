@@ -388,6 +388,42 @@ Trả về kết quả dưới dạng JSON hợp lệ (RAW JSON, không bọc tr
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  const handlePromptEdit = (id: number, lang: 'vi' | 'en' | 'zh', newText: string) => {
+    setGeneratedPrompts(prev => prev ? prev.map(p => p.id === id ? { ...p, [lang]: newText } : p) : null);
+  };
+
+  const [isSyncing, setIsSyncing] = useState<number | null>(null);
+
+  const handlePromptSync = async (id: number, viText: string) => {
+    if (apiKeys.length === 0 || isSyncing === id) return;
+
+    setIsSyncing(id);
+    try {
+      const translationStr = await executeAiWithFallback(apiKeys, activeApiKeyIndex, setActiveApiKeyIndex, async (genAI) => {
+        const response = await genAI.models.generateContent({
+           model: 'gemini-2.0-flash',
+           contents: `Translate the following Vietnamese action movie prompt into English and standard Chinese (Simplified). Keep the structure, labels, and technical terms perfectly. Output raw JSON only. Format: {"en": "...", "zh": "..."}\n\nPrompt:\n${viText}`
+        });
+        return response.text;
+      });
+
+      if (translationStr) {
+         let cleanedStr = translationStr;
+         const match = translationStr.match(/\{[\s\S]*\}/);
+         if (match) cleanedStr = match[0];
+         const parsed = JSON.parse(cleanedStr);
+         
+         setGeneratedPrompts(prev => prev ? prev.map(p => 
+           p.id === id ? { ...p, en: parsed.en || p.en, zh: parsed.zh || p.zh } : p
+         ) : null);
+      }
+    } catch (e) {
+      console.error("Translation sync failed:", e);
+    } finally {
+      setIsSyncing(null);
+    }
+  };
+
   const downloadAllPrompts = () => {
     if (!generatedPrompts) return;
     
@@ -631,7 +667,12 @@ Trả về kết quả dưới dạng JSON hợp lệ (RAW JSON, không bọc tr
                     return (
                       <div key={item.lang} className={`bg-neutral-900/60 rounded-2xl border ${item.color} overflow-hidden`}>
                         <div className="bg-neutral-800/40 px-4 py-2 flex justify-between items-center border-b border-neutral-800/50">
-                          <span className="text-[9px] font-black tracking-tighter text-neutral-400">{item.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-black tracking-tighter text-neutral-400">{item.label}</span>
+                            {item.lang === 'vi' && isSyncing === prompt.id && (
+                              <span className="text-[8px] text-orange-500 animate-pulse font-bold">ĐANG ĐỒNG BỘ...</span>
+                            )}
+                          </div>
                           <button 
                             onClick={() => copyToClipboard(item.content, uniqueKey)}
                             className={`flex items-center gap-1 text-[9px] font-bold px-3 py-1.5 rounded-lg transition-all ${
@@ -641,10 +682,15 @@ Trả về kết quả dưới dạng JSON hợp lệ (RAW JSON, không bọc tr
                             {copiedKey === uniqueKey ? <Check size={12} /> : <Copy size={12} />} {copiedKey === uniqueKey ? 'COPIED' : 'COPY PROMPT'}
                           </button>
                         </div>
-                        <div className="p-4">
-                          <pre className="text-[11.5px] md:text-xs leading-[1.6] text-neutral-300/90 whitespace-pre-wrap font-sans">
-                            {item.content}
-                          </pre>
+                        <div className="p-0">
+                          <textarea
+                            value={item.content}
+                            onChange={(e) => handlePromptEdit(prompt.id, item.lang as 'vi' | 'en' | 'zh', e.target.value)}
+                            onBlur={() => item.lang === 'vi' ? handlePromptSync(prompt.id, item.content) : null}
+                            rows={item.content.split('\n').length + 1}
+                            className="w-full bg-transparent text-[11.5px] md:text-xs leading-[1.6] text-neutral-300/90 p-4 focus:outline-none focus:bg-white/5 transition-colors resize-none font-sans overflow-hidden"
+                            spellCheck={false}
+                          />
                         </div>
                       </div>
                     );
