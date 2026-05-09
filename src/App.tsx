@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Users, Sword, Zap, Copy, Check, Clock, Flame, ChevronUp, ChevronDown, MonitorPlay, Star, Search, Shirt, ShoppingBag, Key, Link, Settings } from 'lucide-react';
+import { Camera, Users, Sword, Zap, Copy, Check, Clock, Flame, ChevronUp, ChevronDown, MonitorPlay, Star, Search, Shirt, ShoppingBag, Key, Link, Settings, Download } from 'lucide-react';
 import { executeAiWithFallback } from './aiService';
 
 const loadSavedState = () => {
@@ -388,6 +388,29 @@ Trả về kết quả dưới dạng JSON hợp lệ (RAW JSON, không bọc tr
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  const downloadAllPrompts = () => {
+    if (!generatedPrompts) return;
+    
+    let content = "=== DANH SÁCH KỊCH BẢN HÀNH ĐỘNG ===\n\n";
+    generatedPrompts.forEach((prompt, index) => {
+      content += `PART ${prompt.index}:\n`;
+      content += `--- TIẾNG VIỆT ---\n${prompt.vi}\n\n`;
+      content += `--- ENGLISH ---\n${prompt.en}\n\n`;
+      content += `--- CHINESE ---\n${prompt.zh}\n\n`;
+      content += "=".repeat(40) + "\n\n";
+    });
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `kich_ban_action_movie_${Date.now()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen bg-neutral-950 text-white p-4 font-sans flex flex-col items-center">
       {/* API Key Modal */}
@@ -575,6 +598,15 @@ Trả về kết quả dưới dạng JSON hợp lệ (RAW JSON, không bọc tr
         >
           {isGenerating ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div> : <><Zap size={22} fill="currentColor" /> XUẤT KỊCH BẢN HÀNH ĐỘNG</>}
         </button>
+
+        {generatedPrompts && (
+          <button
+            onClick={downloadAllPrompts}
+            className="w-full py-3 bg-neutral-800 border border-neutral-700 text-neutral-300 rounded-xl font-bold text-sm hover:bg-neutral-700 transition-all flex items-center justify-center gap-2 mt-2"
+          >
+            <Download size={18} /> TẢI XUỐNG TẤT CẢ PROMPT (.TXT)
+          </button>
+        )}
 
         {generatedPrompts && (
           <div className="space-y-10 mt-8 pb-20">
